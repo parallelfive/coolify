@@ -55,14 +55,14 @@ class StartSentinel
         }
         $dockerEnvironments = implode(' ', array_map(fn ($key, $value) => '-e '.escapeshellarg("$key=$value"), array_keys($environments), $environments));
         $dockerLabels = implode(' ', array_map(fn ($key, $value) => "$key=$value", array_keys($labels), $labels));
-        $dockerCommand = "docker run -d $dockerEnvironments --name coolify-sentinel -v /var/run/docker.sock:/var/run/docker.sock -v $mountDir:/app/db --pid host --health-cmd \"curl --fail http://127.0.0.1:8888/api/health || exit 1\" --health-interval 10s --health-retries 3 --add-host=host.docker.internal:host-gateway --label $dockerLabels $image";
+        $dockerCommand = "docker run -d $dockerEnvironments --name coolify-sentinel -v /var/run/docker.sock:/var/run/docker.sock -v coolify-sentinel-data:/app/db --pid host --health-cmd \"curl --fail http://127.0.0.1:8888/api/health || exit 1\" --health-interval 10s --health-retries 3 --add-host=host.docker.internal:host-gateway --label $dockerLabels $image";
 
         instant_remote_process([
             'docker rm -f coolify-sentinel || true',
             "mkdir -p $mountDir",
             $dockerCommand,
-            "chown -R 9999:root $mountDir",
-            "chmod -R 700 $mountDir",
+            "echo 'skipping chown on macOS'",
+            "echo 'skipping chmod on macOS'",
         ], $server);
 
         $server->settings->is_sentinel_enabled = true;

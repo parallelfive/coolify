@@ -1,0 +1,14 @@
+# Parallel Five custom Coolify image
+# Extends the official image with patches until they're merged upstream.
+# Rebuild when upstream releases a new version or when adding new patches.
+FROM ghcr.io/coollabsio/coolify:latest
+
+# Fix: Flysystem put() fails on 0600 SSH key overwrite (PR #9491)
+COPY app/Models/PrivateKey.php /var/www/html/app/Models/PrivateKey.php
+
+# Fix: Sentinel bind mount chmod fails on macOS (uses Docker volume instead)
+COPY app/Actions/Server/StartSentinel.php /var/www/html/app/Actions/Server/StartSentinel.php
+
+# Fix: Websocket proxy for terminal + realtime through Cloudflare Tunnel
+COPY patches/default.conf /etc/nginx/conf.d/default.conf
+COPY patches/terminal-proxy.conf /etc/nginx/site-opts.d/terminal.conf
