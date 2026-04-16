@@ -539,7 +539,7 @@ class Server extends BaseModel
                         'service' => 'coolify',
                         'rule' => "Host(`{$host}`)",
                         'tls' => [
-                            'certresolver' => 'letsencrypt',
+                            // certresolver removed for Cloudflare Tunnel compatibility
                         ],
                     ];
                     $traefik_dynamic_conf['http']['routers']['coolify-realtime-wss'] = [
@@ -549,7 +549,7 @@ class Server extends BaseModel
                         'service' => 'coolify-realtime',
                         'rule' => "Host(`{$host}`) && PathPrefix(`/app`)",
                         'tls' => [
-                            'certresolver' => 'letsencrypt',
+                            // certresolver removed for Cloudflare Tunnel compatibility
                         ],
                     ];
                     $traefik_dynamic_conf['http']['routers']['coolify-terminal-wss'] = [
@@ -559,7 +559,7 @@ class Server extends BaseModel
                         'service' => 'coolify-terminal',
                         'rule' => "Host(`{$host}`) && PathPrefix(`/terminal/ws`)",
                         'tls' => [
-                            'certresolver' => 'letsencrypt',
+                            // certresolver removed for Cloudflare Tunnel compatibility
                         ],
                     ];
                 }
