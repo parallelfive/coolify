@@ -308,9 +308,11 @@ function generateDefaultProxyConfiguration(Server $server, array $custom_command
                         '--entrypoints.https.http3',
                         '--providers.file.directory=/traefik/dynamic/',
                         '--providers.file.watch=true',
-                        '--certificatesresolvers.letsencrypt.acme.httpchallenge=true',
-                        '--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http',
-                        '--certificatesresolvers.letsencrypt.acme.storage=/traefik/acme.json',
+                        // ACME resolver removed for Cloudflare Tunnel compatibility
+                        // If using Let's Encrypt directly, uncomment:
+                        // '--certificatesresolvers.letsencrypt.acme.httpchallenge=true',
+                        // '--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http',
+                        // '--certificatesresolvers.letsencrypt.acme.storage=/traefik/acme.json',
                     ],
                     'labels' => $labels,
                 ],
