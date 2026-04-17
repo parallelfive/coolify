@@ -52,6 +52,12 @@ Built automatically by GitHub Actions on push to `p5/patched` and weekly (to pic
 - **Fix**: Proxies `/terminal/ws` → `coolify-realtime:6002` and `/app/` → `coolify-realtime:6001`.
 - **Remove when**: Same as above.
 
+### 5. DatabaseBackupJob.php — POSIX size check for macOS hosts
+- **File**: `app/Jobs/DatabaseBackupJob.php` (method `calculate_size`)
+- **Problem**: `calculate_size()` runs `du -b $file | cut -f1`, but the `-b` byte-count flag is a GNU coreutils extension not available on macOS/BSD `du`. On macOS hosts, `du -b` errors out, Coolify reads empty output as size=0, throws `Local backup file is empty or was not created` — even when the pg_dump file itself is valid and non-zero. Silent-failure-like-nuisance: backups run successfully but get marked failed + skipped for S3 upload.
+- **Fix**: Replace with `wc -c < $file | tr -d ' '` — POSIX, works identically on GNU coreutils and BSD. `tr -d ' '` strips BSD wc's leading whitespace so the integer parses cleanly.
+- **Remove when**: Upstream adopts a portable size check (file a PR when we have a moment).
+
 ## How to Update
 
 ### When Coolify releases a new version

@@ -662,7 +662,12 @@ class DatabaseBackupJob implements ShouldBeEncrypted, ShouldQueue
 
     private function calculate_size()
     {
-        return instant_remote_process(["du -b $this->backup_location | cut -f1"], $this->server, false, false, null, disableMultiplexing: true);
+        // P5 patch: GNU `du -b` isn't available on macOS/BSD hosts — it silently
+        // emits an error, Coolify reads empty output as size=0, throws
+        // "Local backup file is empty or was not created" even though the dump
+        // file is a valid pg_dump. Use `wc -c` which is POSIX and works both on
+        // GNU coreutils and BSD/macOS.
+        return instant_remote_process(["wc -c < $this->backup_location | tr -d ' '"], $this->server, false, false, null, disableMultiplexing: true);
     }
 
     private function upload_to_s3(): void
