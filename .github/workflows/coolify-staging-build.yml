@@ -6,6 +6,10 @@ on:
       - v4.x
       - v3.x
       - '**v5.x**'
+      # P5 fork — we have our own image build pipeline (build-p5-image.yml)
+      # that publishes to ghcr.io/parallelfive/coolify. Upstream's staging
+      # build tries to push to coollabsio/coolify and fails with no creds.
+      - 'p5/**'
     paths-ignore:
         - .github/workflows/coolify-helper.yml
         - .github/workflows/coolify-helper-next.yml

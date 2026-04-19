@@ -23,6 +23,26 @@ class CheckUpdates
                 ];
             }
 
+            // P5 patch: macOS hosts (our localhost Coolify runs on a MacBook)
+            // don't have /etc/os-release and don't use apt/dnf/pacman for
+            // OS-level patches. Detect via `uname -s` and short-circuit with
+            // a "no updates" result so ServerPatchCheckJob doesn't notify on
+            // every run. Without this the notification channel stays lit
+            // with `cat: /etc/os-release: No such file or directory`.
+            try {
+                $uname = trim(instant_remote_process(['uname -s'], $server, throwError: false) ?? '');
+                if ($uname === 'Darwin') {
+                    return [
+                        'osId' => 'macos',
+                        'package_manager' => 'brew',
+                        'total_updates' => 0,
+                        'updates' => [],
+                    ];
+                }
+            } catch (\Throwable) {
+                // fall through to the Linux path
+            }
+
             // Try first method - using instant_remote_process
             $output = instant_remote_process(['cat /etc/os-release'], $server);
 

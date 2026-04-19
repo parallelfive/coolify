@@ -15,3 +15,9 @@ COPY patches/terminal-proxy.conf /etc/nginx/site-opts.d/terminal.conf
 
 # Fix: POSIX size check in DatabaseBackupJob (GNU `du -b` isn't on macOS/BSD)
 COPY app/Jobs/DatabaseBackupJob.php /var/www/html/app/Jobs/DatabaseBackupJob.php
+
+# Fix: skip apt/dnf/pacman patch check on macOS hosts — our localhost server
+# runs on a MacBook, which has no /etc/os-release, so the unpatched
+# CheckUpdates action fires a "Server patch check failed" notification every
+# cycle. The patched version short-circuits on Darwin.
+COPY app/Actions/Server/CheckUpdates.php /var/www/html/app/Actions/Server/CheckUpdates.php

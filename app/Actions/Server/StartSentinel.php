@@ -55,12 +55,17 @@ class StartSentinel
         }
         $dockerEnvironments = implode(' ', array_map(fn ($key, $value) => '-e '.escapeshellarg("$key=$value"), array_keys($environments), $environments));
         $dockerLabels = implode(' ', array_map(fn ($key, $value) => "$key=$value", array_keys($labels), $labels));
+        // P5 patch: use a Docker named volume instead of a bind-mount. On
+        // macOS-hosted Coolify, bind-mounting /data/coolify/sentinel and
+        // chmod/chown'ing from the host trips permission errors the Sentinel
+        // container never recovers from. A named volume side-steps it.
         $dockerCommand = "docker run -d $dockerEnvironments --name coolify-sentinel -v /var/run/docker.sock:/var/run/docker.sock -v coolify-sentinel-data:/app/db --pid host --health-cmd \"curl --fail http://127.0.0.1:8888/api/health || exit 1\" --health-interval 10s --health-retries 3 --add-host=host.docker.internal:host-gateway --label $dockerLabels $image";
 
         instant_remote_process([
             'docker rm -f coolify-sentinel || true',
             "mkdir -p $mountDir",
             $dockerCommand,
+            // P5 patch: named volume above — skip host chown/chmod.
             "echo 'skipping chown on macOS'",
             "echo 'skipping chmod on macOS'",
         ], $server);
