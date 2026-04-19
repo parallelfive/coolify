@@ -217,8 +217,9 @@ class PrivateKey extends BaseModel
                 throw new \Exception("Failed to acquire lock for SSH key: {$keyLocation}");
             }
 
-            // Delete existing file first — Flysystem's put() returns false
-            // when overwriting a file with 0600 permissions (cannot set visibility)
+            // P5 patch: Flysystem's put() returns false when overwriting a
+            // file with 0600 permissions (cannot set visibility). Delete
+            // first so the put below always lands on a fresh inode.
             if ($disk->exists($filename)) {
                 $disk->delete($filename);
             }
