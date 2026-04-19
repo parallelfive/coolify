@@ -58,30 +58,83 @@ Built automatically by GitHub Actions on push to `p5/patched` and weekly (to pic
 - **Fix**: Replace with `wc -c < $file | tr -d ' '` — POSIX, works identically on GNU coreutils and BSD. `tr -d ' '` strips BSD wc's leading whitespace so the integer parses cleanly.
 - **Remove when**: Upstream adopts a portable size check (file a PR when we have a moment).
 
+### 6. CheckUpdates.php — skip OS-patch-check on macOS
+- **File**: `app/Actions/Server/CheckUpdates.php` (method `handle`)
+- **Problem**: `CheckUpdates` runs `cat /etc/os-release` to sniff distro + package manager. macOS has no `/etc/os-release`, so the outer catch returns `['error' => 'cat: /etc/os-release: No such file or directory']`. `ServerPatchCheckJob` treats that as a failure and fires the `Server patch check failed` notification every cycle — one email (or Slack ping) per 10-ish minutes forever.
+- **Fix**: Before the Linux path, `instant_remote_process(['uname -s'], $server, throwError: false)`; if it's `Darwin`, return a clean zero-updates result (no `error` key) so the job exits silently without notifying.
+- **Remove when**: Upstream handles non-Linux servers gracefully (unlikely — macOS isn't a supported target).
+
+### 7. pr-quality.yaml — gate to upstream repo only
+- **File**: `.github/workflows/pr-quality.yaml`
+- **Problem**: Upstream's `peakoss/anti-slop` action enforces `allowed-target-branches: "next"` and has `close-pr: true`. PRs on this fork target `p5/patched`, so the action auto-closes every PR seconds after open/reopen.
+- **Fix**: Job-level `if: github.repository == 'coollabsio/coolify'` — skip on our fork; upstream runs unchanged.
+- **Remove when**: N/A (permanent fork guard).
+
+### 8. coolify-staging-build.yml — skip p5/** branches
+- **File**: `.github/workflows/coolify-staging-build.yml`
+- **Problem**: Upstream's staging build fires on push to every branch except `v4.x/v3.x/*v5.x*`. Our `p5/*` branches triggered it and failed trying to push to `coollabsio/coolify` without creds.
+- **Fix**: Add `p5/**` to the `branches-ignore` list.
+- **Remove when**: N/A (permanent fork guard).
+
 ## How to Update
 
-### When Coolify releases a new version
+### ⚠️ Do NOT click "Sync fork"
 
-1. Sync the fork:
-   ```bash
-   git fetch upstream
-   git checkout p5/patched
-   git rebase upstream/v4.x
-   ```
-2. Resolve any conflicts in patched files.
-3. Push — the Action rebuilds automatically.
-4. On the MacBook: `docker compose pull coolify && docker compose up -d coolify`
+The GitHub UI shows `N commits behind coollabsio/coolify:v4.x` on `p5/patched`. **That's cosmetic — don't hit the Sync button.** Syncing would:
+
+1. Merge 90+ upstream commits into `p5/patched` in one shot.
+2. Conflict on every patched file (upstream may have changed the surrounding code).
+3. Pull in non-code churn (changelog, templates, etc.) we don't care about.
+
+Our runtime is always upstream-latest anyway: `Dockerfile.p5` starts `FROM ghcr.io/coollabsio/coolify:latest`. The patched PHP files in this branch only need to be *current enough* to cleanly overlay onto whatever `:latest` contains. If one patch goes stale (security fix landed upstream in the same file, new behavior we'd clobber), do a **targeted rebase** of just that file — not a full-branch sync.
+
+### Targeted rebase when a patch goes stale
+
+```bash
+git fetch upstream
+git checkout p5/patched -b p5/sync-upstream-YYYY-MM
+# For each stale patched file:
+git show upstream/v4.x:app/Models/PrivateKey.php > app/Models/PrivateKey.php
+# Re-apply our patch by hand (tracked in Active Patches above)
+# Verify: diff <(git show upstream/v4.x:<file>) <file>  should read as our minimal delta
+git commit -am "sync: rebase P5 patches onto upstream/v4.x (YYYY-MM)"
+git push -u origin p5/sync-upstream-YYYY-MM
+gh pr create -R parallelfive/coolify --base p5/patched --head p5/sync-upstream-YYYY-MM
+```
+
+After merge, CI rebuilds `ghcr.io/parallelfive/coolify:latest`, then on the MacBook:
+
+```bash
+ssh thchristmas 'cd /data/coolify/source && sudo docker compose pull coolify && sudo docker compose up -d coolify'
+```
+
+Reference run: PR #3 (2026-04-19) — 4 files touched, minimal diff surface per file. See commit `236cafb25` for the pattern.
+
+### When to do it
+
+Check periodically (monthly-ish, or when a Coolify security advisory lands):
+
+```bash
+git fetch upstream
+for f in app/Models/PrivateKey.php app/Actions/Server/StartSentinel.php app/Jobs/DatabaseBackupJob.php app/Actions/Server/CheckUpdates.php; do
+  echo "--- $f ---"
+  git log upstream/v4.x --oneline --since=4.weeks -- "$f"
+done
+```
+
+If a patched file shows any upstream commits, start a sync branch. If nothing shows, you're current.
 
 ### Adding a new patch
 
-1. Apply the change to the relevant file on `p5/patched`.
+1. Apply the change to the relevant file on a `p5/patch-N-*` branch off `p5/patched`.
 2. If it's a non-source file (nginx config, etc.), put it in `patches/` and add a `COPY` line to `Dockerfile.p5`.
-3. Push — Action rebuilds.
-4. Document the patch in this file.
+3. For PHP patches, add the `COPY` line too.
+4. PR into `p5/patched`. CI rebuilds.
+5. Document the patch in this file.
 
-### When an upstream PR is merged
+### When an upstream PR supersedes one of ours
 
-Remove the corresponding `COPY` line from `Dockerfile.p5`, revert the patched file to upstream, and update this doc.
+Remove the corresponding `COPY` line from `Dockerfile.p5`, delete the patched file, and update this doc. The next image build will use pure upstream for that file.
 
 ## Infrastructure
 
