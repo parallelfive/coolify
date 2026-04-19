@@ -33,6 +33,11 @@ env:
 
 jobs:
   build-push:
+    # P5 fork: upstream's staging build pushes to coollabsio/coolify and
+    # docker.io/coollabsio/coolify — neither of which we have creds for. The
+    # branches-ignore filter above isn't enough (new branch names keep
+    # slipping through). Gate the whole job on upstream repo.
+    if: github.repository == 'coollabsio/coolify'
     strategy:
       matrix:
         include:
