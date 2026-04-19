@@ -11,6 +11,11 @@ on:
 
 jobs:
   pr-quality:
+    # P5 fork: upstream's anti-slop action requires target=next and
+    # auto-closes PRs that don't match (close-pr: true below). Our PRs
+    # target p5/patched. Skip the whole check on our fork; upstream
+    # (coollabsio/coolify) runs it unchanged.
+    if: github.repository == 'coollabsio/coolify'
     runs-on: ubuntu-latest
     steps:
       - uses: peakoss/anti-slop@v0
