@@ -1,7 +1,9 @@
 # Parallel Five custom Coolify image
 # Extends the official image with patches until they're merged upstream.
 # Rebuild when upstream releases a new version or when adding new patches.
-FROM ghcr.io/coollabsio/coolify:latest
+# The base MUST match the upstream version the patched files were rebased onto.
+# A moving :latest tag silently re-bases the patches onto whatever shipped last.
+FROM ghcr.io/coollabsio/coolify:4.7.5
 
 # Fix: Flysystem put() fails on 0600 SSH key overwrite (PR #9491)
 COPY app/Models/PrivateKey.php /var/www/html/app/Models/PrivateKey.php
@@ -21,3 +23,11 @@ COPY app/Jobs/DatabaseBackupJob.php /var/www/html/app/Jobs/DatabaseBackupJob.php
 # CheckUpdates action fires a "Server patch check failed" notification every
 # cycle. The patched version short-circuits on Darwin.
 COPY app/Actions/Server/CheckUpdates.php /var/www/html/app/Actions/Server/CheckUpdates.php
+
+# Fix: no ACME resolver — Cloudflare Tunnel terminates TLS and speaks plain HTTP to
+# Traefik, so a letsencrypt certresolver on the dashboard routers always fails with
+# "Router uses a nonexistent certificate resolver letsencrypt".
+# Both files were patched in p5/patched but never COPY'd, so the patch had never
+# actually reached the image.
+COPY bootstrap/helpers/proxy.php /var/www/html/bootstrap/helpers/proxy.php
+COPY app/Models/Server.php /var/www/html/app/Models/Server.php

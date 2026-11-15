@@ -9,10 +9,16 @@ Coolify doesn't officially support macOS or Cloudflare Tunnel deployments. We've
 ## Image
 
 ```
-ghcr.io/parallelfive/coolify:latest
+ghcr.io/parallelfive/coolify:4.7.5-p5   # immutable — pin this
+ghcr.io/parallelfive/coolify:latest     # moves on every patch commit
 ```
 
-Built automatically by GitHub Actions on push to `p5/patched` and weekly (to pick up base image updates).
+The version tag is derived from the base tag in `Dockerfile.p5` and is what a server should
+pin. `latest` exists for humans; a deploy pinned to it changes underneath you.
+
+Built automatically by GitHub Actions on push to `p5/patched`.
+
+**The base image is pinned** in `Dockerfile.p5` to the upstream release these patches were rebased onto (currently `4.7.5`). It used to be `:latest`, which meant a rebuild silently re-based the patches onto whatever upstream had shipped since — the patches only work against the version they were rebased onto.
 
 ## Branch Layout
 
@@ -74,7 +80,18 @@ Built automatically by GitHub Actions on push to `p5/patched` and weekly (to pic
 - **File**: `.github/workflows/coolify-staging-build.yml`
 - **Problem**: Upstream's staging build fires on push to every branch except `v4.x/v3.x/*v5.x*`. Our `p5/*` branches triggered it and failed trying to push to `coollabsio/coolify` without creds.
 - **Fix**: Add `p5/**` to the `branches-ignore` list.
-- **Remove when**: N/A (permanent fork guard).
+- **Status**: **retired** — upstream deleted this workflow in 4.7.5, so the rebase accepts the deletion.
+
+### 9. Server.php + proxy.php — no ACME resolver (Cloudflare Tunnel)
+- **Files**: `app/Models/Server.php`, `bootstrap/helpers/proxy.php`
+- **Problem**: the dashboard routers are generated with `certresolver: letsencrypt` and Traefik is
+  started with the matching `--certificatesresolvers.letsencrypt.*` flags. Behind a Cloudflare Tunnel
+  Cloudflare terminates TLS and speaks plain HTTP to Traefik, so those routers can never be served and
+  Traefik logs `Router uses a nonexistent certificate resolver letsencrypt` every couple of seconds.
+- **Fix**: drop the certresolver from the generated routers and the ACME flags from the Traefik command.
+- **Note**: these two files were patched in the branch but were **not** `COPY`'d in `Dockerfile.p5`, so the
+  patch had never actually reached the image. Fixed in the 4.7.5 rebase.
+- **Remove when**: Coolify supports TLS-terminating proxies in front of it natively.
 
 ## How to Update
 

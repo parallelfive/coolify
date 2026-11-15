@@ -1,11 +1,16 @@
 name: Build P5 Coolify Image
 
+# The image version is derived from the base tag pinned in Dockerfile.p5, so a build
+# of `FROM ...coolify:4.4.7` publishes `4.4.7-p5`. That tag is immutable: it always
+# refers to that upstream release plus the current patch set.
+#
+# Do not add a "rebuild weekly" schedule. The base is pinned, so a scheduled rebuild
+# either produces a byte-identical image or — if someone reverts the pin to `:latest`
+# — silently re-bases every patch onto a newer upstream without a reviewable diff.
+
 on:
   push:
     branches: [p5/patched]
-  schedule:
-    # Rebuild weekly to pick up new base image versions
-    - cron: '0 6 * * 1'
   workflow_dispatch:
 
 env:
@@ -21,8 +26,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: p5/patched
+
+      - name: Resolve version from the pinned base image
+        id: base
+        run: |
+          set -euo pipefail
+          base=$(grep -E '^FROM .*coolify:' Dockerfile.p5 | head -1 \
+                 | sed -E 's/^FROM .*coolify:([^[:space:]]+).*/\1/')
+          if [ -z "$base" ] || [ "$base" = "latest" ]; then
+            echo "::error file=Dockerfile.p5::base image must pin a release tag (got '${base:-none}'), not a moving tag"
+            exit 1
+          fi
+          echo "version=$base"   >> "$GITHUB_OUTPUT"
+          echo "tag=$base-p5"    >> "$GITHUB_OUTPUT"
+          echo "publishing ${base}-p5"
 
       - uses: docker/login-action@v3
         with:
@@ -37,8 +54,15 @@ jobs:
           context: .
           file: Dockerfile.p5
           push: true
+          # The version tag is the one to pin. `latest` is a convenience alias for
+          # humans; never pin a server to it (it moves on every patch commit).
           tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.base.outputs.tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=Parallel Five Coolify
+            org.opencontainers.image.version=${{ steps.base.outputs.tag }}
+            org.opencontainers.image.base.name=${{ env.REGISTRY }}/coollabsio/coolify:${{ steps.base.outputs.version }}
+            org.opencontainers.image.source=https://github.com/parallelfive/coolify
           cache-from: type=gha
           cache-to: type=gha,mode=max

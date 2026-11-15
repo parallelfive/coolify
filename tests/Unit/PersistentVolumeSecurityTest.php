@@ -6,7 +6,6 @@
  * Tests to ensure persistent volume names are validated against command injection
  * and that shell commands properly escape volume names.
  *
- * Related Advisory: GHSA-mh8x-fppq-cp77
  * Related Files:
  *  - app/Models/LocalPersistentVolume.php
  *  - app/Support/ValidationPatterns.php
@@ -51,13 +50,16 @@ it('rejects volume names with shell metacharacters', function (string $name) {
 it('escapeshellarg neutralizes injection in docker volume rm command', function (string $maliciousName) {
     $command = 'docker volume rm -f '.escapeshellarg($maliciousName);
 
-    // The command should contain the name as a single quoted argument,
-    // preventing shell interpretation of metacharacters
-    expect($command)->not->toContain('; ')
-        ->not->toContain('| ')
-        ->not->toContain('&& ')
-        ->not->toContain('`')
-        ->toStartWith('docker volume rm -f ');
+    // The name must be passed as one single-quoted shell word: metacharacters stay inside
+    // the quotes and every embedded quote is closed, escaped, and reopened ('\'').
+    expect($command)->toStartWith('docker volume rm -f ');
+
+    $argument = substr($command, strlen('docker volume rm -f '));
+    expect($argument)->toMatch("/^'(?:[^']|'\\\\'')*'$/");
+
+    // Undoing the quoting yields the exact original name, so nothing was interpreted
+    $unquoted = str_replace("'\\''", "'", substr($argument, 1, -1));
+    expect($unquoted)->toBe($maliciousName);
 })->with([
     'semicolon' => 'vol; rm -rf /',
     'pipe' => 'vol | cat /etc/passwd',
@@ -96,3 +98,88 @@ it('generates volumeNameMessages with custom field name', function () {
 
     expect($messages)->toHaveKey('volume_name.regex');
 });
+
+// --- escapeshellarg Defense Tests for docker volume create ---
+
+it('escapeshellarg neutralizes injection in docker volume create command', function (string $maliciousName) {
+    $escaped = escapeshellarg($maliciousName);
+    $command = "docker volume create {$escaped}";
+
+    expect($command)->toStartWith('docker volume create ')
+        ->and($escaped)->toStartWith("'")
+        ->and($escaped)->toEndWith("'");
+})->with([
+    'semicolon' => 'vol; rm -rf /',
+    'pipe' => 'vol | cat /etc/passwd',
+    'ampersand' => 'vol && whoami',
+    'backtick' => 'vol`id`',
+    'command substitution' => 'vol$(whoami)',
+]);
+
+// --- escapeshellarg Defense Tests for docker run -v ---
+
+it('escapeshellarg neutralizes injection in docker run -v command', function (string $maliciousName) {
+    $escaped = escapeshellarg($maliciousName);
+    $command = "docker run --rm -v {$escaped}:/source -v {$escaped}:/target alpine sh -c 'cp -a /source/. /target/'";
+
+    expect($command)->toContain('docker run --rm -v ')
+        ->and($escaped)->toStartWith("'")
+        ->and($escaped)->toEndWith("'");
+})->with([
+    'semicolon' => 'vol; rm -rf /',
+    'pipe' => 'vol | cat /etc/passwd',
+    'command substitution' => 'vol$(whoami)',
+]);
+
+// --- escapeshellarg Defense Tests for docker network commands ---
+
+it('escapeshellarg neutralizes injection in docker network disconnect command', function (string $maliciousName) {
+    $escaped = escapeshellarg($maliciousName);
+    $command = "docker network disconnect {$escaped} coolify-proxy";
+
+    expect($command)->toStartWith('docker network disconnect ')
+        ->and($escaped)->toStartWith("'")
+        ->and($escaped)->toEndWith("'");
+})->with([
+    'semicolon' => 'net; rm -rf /',
+    'pipe' => 'net | cat /etc/passwd',
+    'command substitution' => 'net$(whoami)',
+]);
+
+it('escapeshellarg neutralizes injection in docker network rm command', function (string $maliciousName) {
+    $escaped = escapeshellarg($maliciousName);
+    $command = "docker network rm {$escaped}";
+
+    expect($command)->toStartWith('docker network rm ')
+        ->and($escaped)->toStartWith("'")
+        ->and($escaped)->toEndWith("'");
+})->with([
+    'semicolon' => 'net; rm -rf /',
+    'pipe' => 'net | cat /etc/passwd',
+    'command substitution' => 'net$(whoami)',
+]);
+
+// --- DIRECTORY_PATH_PATTERN Tests ---
+
+it('accepts valid directory paths', function (string $path) {
+    expect(preg_match(ValidationPatterns::DIRECTORY_PATH_PATTERN, $path))->toBe(1);
+})->with([
+    'root' => '/',
+    'simple path' => '/data',
+    'nested path' => '/data/coolify/volumes',
+    'with dots' => '/data/my.app/storage',
+    'with hyphens' => '/data/my-app/storage',
+    'with underscores' => '/data/my_app/storage',
+]);
+
+it('rejects directory paths with shell metacharacters', function (string $path) {
+    expect(preg_match(ValidationPatterns::DIRECTORY_PATH_PATTERN, $path))->toBe(0);
+})->with([
+    'semicolon injection' => '/etc; rm -rf /',
+    'pipe injection' => '/etc | cat /etc/passwd',
+    'command substitution' => '/etc$(whoami)',
+    'backtick injection' => '/etc`id`',
+    'space injection' => '/etc /tmp',
+    'relative traversal' => '../../../etc/passwd',
+    'no leading slash' => 'etc/passwd',
+]);
