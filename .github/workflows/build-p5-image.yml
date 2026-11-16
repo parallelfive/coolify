@@ -54,11 +54,11 @@ jobs:
           context: .
           file: Dockerfile.p5
           push: true
-          # The version tag is the one to pin. `latest` is a convenience alias for
-          # humans; never pin a server to it (it moves on every patch commit).
+          # Only the immutable version tag. Publishing `latest` here would silently move
+          # the tag that the host's compose file still defaults to, arming a version jump
+          # on any stray `docker compose up`. Promote deliberately, by tag.
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.base.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           labels: |
             org.opencontainers.image.title=Parallel Five Coolify
             org.opencontainers.image.version=${{ steps.base.outputs.tag }}
