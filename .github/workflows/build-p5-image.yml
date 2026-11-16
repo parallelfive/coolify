@@ -9,8 +9,12 @@ name: Build P5 Coolify Image
 # — silently re-bases every patch onto a newer upstream without a reviewable diff.
 
 on:
+  # Deliberately unfiltered: the previous `branches: [p5/patched]` filter produced no run
+  # at all on 2026-11-16 even though the push event was delivered (CodeQL fired on the same
+  # SHA), and the same filter worked for nine pushes in April. `**` matches every branch by
+  # pattern instead of literal name, and no longer silently swallows a mismatch.
   push:
-    branches: [p5/patched]
+    branches: ['**']
   workflow_dispatch:
 
 env:
