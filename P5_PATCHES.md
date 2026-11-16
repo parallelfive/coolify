@@ -44,19 +44,21 @@ Built automatically by GitHub Actions on push to `p5/patched`.
 - **Fix**: Uses a Docker volume (`coolify-sentinel-data`) instead of a bind mount, and skips chown/chmod.
 - **Remove when**: Coolify adds native macOS support (unlikely soon).
 
-### 3. default.conf — Nginx config for Cloudflare Tunnel
+### 3. default.conf — Nginx config for Cloudflare Tunnel (RETIRED at 4.7.5)
 - **File**: `patches/default.conf`
 - **Target**: `/etc/nginx/conf.d/default.conf`
 - **Problem**: Default nginx config doesn't proxy websocket paths needed for terminal and realtime features through a Cloudflare Tunnel.
 - **Fix**: Custom server block that includes the terminal proxy config.
-- **Remove when**: Coolify adds Cloudflare Tunnel support (unlikely soon).
+- **Status**: **retired at 4.7.5** — upstream now proxies `/terminal/ws` in `site-opts.d/http.conf`
+  and runs realtime in-process. Overlaying this file makes nginx exit at startup.
 
-### 4. terminal-proxy.conf — Websocket proxy
+### 4. terminal-proxy.conf — Websocket proxy (RETIRED at 4.7.5)
 - **File**: `patches/terminal-proxy.conf`
 - **Target**: `/etc/nginx/site-opts.d/terminal.conf`
 - **Problem**: Terminal and realtime websockets don't work through Cloudflare Tunnel without explicit nginx proxying.
 - **Fix**: Proxies `/terminal/ws` → `coolify-realtime:6002` and `/app/` → `coolify-realtime:6001`.
-- **Remove when**: Same as above.
+- **Status**: **retired at 4.7.5** — same reason as #3; `proxy_pass http://coolify-realtime:6002`
+  no longer resolves because the sidecar is gone.
 
 ### 5. DatabaseBackupJob.php — POSIX size check for macOS hosts
 - **File**: `app/Jobs/DatabaseBackupJob.php` (method `calculate_size`)

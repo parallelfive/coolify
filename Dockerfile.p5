@@ -31,3 +31,10 @@ COPY app/Actions/Server/CheckUpdates.php /var/www/html/app/Actions/Server/CheckU
 # actually reached the image.
 COPY bootstrap/helpers/proxy.php /var/www/html/bootstrap/helpers/proxy.php
 COPY app/Models/Server.php /var/www/html/app/Models/Server.php
+
+# NOT applied from 4.7.5: patches/default.conf and patches/terminal-proxy.conf.
+# Upstream proxies /terminal/ws in site-opts.d/http.conf and runs realtime in-process,
+# and the stock image ships no conf.d/default.conf. Overlaying our server block made
+# nginx die at startup with "host not found in upstream coolify-realtime" (it resolved
+# that name at start), so the container never became healthy. Keep them in the repo for
+# history, but do not copy them back without checking upstream's nginx layout first.
